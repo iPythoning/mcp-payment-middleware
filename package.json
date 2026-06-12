@@ -35,7 +35,7 @@
   "author": "iPythoning",
   "repository": {
     "type": "git",
-    "url": "https://github.com/iPythoning/mcp-payment-middleware"
+    "url": "git+https://github.com/iPythoning/mcp-payment-middleware.git"
   },
   "peerDependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

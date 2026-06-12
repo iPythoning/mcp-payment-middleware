@@ -2,6 +2,10 @@
 
 > Add paid access to your MCP server in under 10 minutes. Free, open-source, MIT-licensed.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub stars](https://img.shields.io/github/stars/iPythoning/mcp-payment-middleware?style=social)](https://github.com/iPythoning/mcp-payment-middleware)
+[![npm version](https://img.shields.io/npm/v/mcp-payment-middleware)](https://www.npmjs.com/package/mcp-payment-middleware)
+
 ```bash
 npm install mcp-payment-middleware
 ```
