@@ -2,7 +2,271 @@
 
 > Add paid access to your MCP server in under 10 minutes. Free, open-source, MIT-licensed.
 
-**⚠️ WORK IN PROGRESS — Watch this repo for the first release (ETA: 2 weeks)**
+```bash
+npm install mcp-payment-middleware
+```
+
+---
+
+## Quick Start
+
+```ts
+import { PaymentMcpServer } from "mcp-payment-middleware";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+const server = new PaymentMcpServer({
+  name: "my-paid-server",
+  version: "1.0.0",
+  payment: {
+    price: 0.001, // USDC per call
+    paymentMethods: ["usdc"],
+    walletAddress: "0x6024AB6263AB33150C4Ab83E74733AD42fdD71C4",
+    freeTierCalls: 5, // 5 free calls
+  },
+});
+
+server.tool(
+  "expensive-tool",
+  { query: z.string() },
+  async ({ query }) => ({
+    content: [{ type: "text", text: `Result for: ${query}` }],
+  }),
+);
+
+await server.connect(new StdioServerTransport());
+```
+
+### With Stripe
+
+```ts
+const server = new PaymentMcpServer({
+  name: "my-server",
+  version: "1.0.0",
+  payment: {
+    price: 2.99,
+    paymentMethods: ["stripe"],
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+  },
+});
+```
+
+### With an existing McpServer
+
+```ts
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { withPayment } from "mcp-payment-middleware";
+
+const base = new McpServer({ name: "my-server", version: "1.0.0" });
+const server = withPayment(base, {
+  price: 0.001,
+  paymentMethods: ["usdc"],
+  walletAddress: "0x...",
+});
+
+// Register tools as normal — they're automatically gated
+server.tool("my-tool", schema, handler);
+```
+
+---
+
+## Payment Methods
+
+### USDC (on-chain, no API key required)
+
+Verifies payments on Arbitrum, Base, or Polygon using public RPC endpoints. No API keys needed.
+
+```ts
+payment: {
+  paymentMethods: ["usdc"],
+  walletAddress: "0x...",
+  usdcChain: "arbitrum", // "arbitrum" | "base" | "polygon"
+}
+```
+
+### Stripe
+
+Uses Stripe Checkout. Requires a Stripe secret key.
+
+```ts
+payment: {
+  paymentMethods: ["stripe"],
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+}
+```
+
+### Custom Providers
+
+Implement the `PaymentProvider` interface:
+
+```ts
+import type { PaymentProvider } from "mcp-payment-middleware";
+
+const myProvider: PaymentProvider = {
+  name: "my-payment",
+  async verifyPayment(userId, amount) {
+    // Your verification logic
+    return { verified: true, provider: "my-payment" };
+  },
+};
+
+const server = new PaymentMcpServer({
+  name: "my-server",
+  version: "1.0.0",
+  payment: {
+    price: 0.001,
+    paymentMethods: [], // No built-in methods
+    customProviders: [myProvider],
+  },
+});
+```
+
+---
+
+## License Keys
+
+Generate and validate license keys without a payment provider:
+
+```ts
+import { generateLicenseKey, createLicenseKey } from "mcp-payment-middleware";
+
+// Generate a simple key
+const key = generateLicenseKey();
+// => "mcp-ABCD-EFGH-JKLM"
+
+// Create a signed key with embedded metadata
+const signed = createLicenseKey({
+  secret: process.env.LICENSE_SECRET!,
+  maxCalls: 1000,
+  expiresAt: new Date("2026-12-31"),
+});
+// => "mcp-XXXX-YYYY-ZZZZ.signed_hmac"
+
+// Validate on the server
+server.addLicenseKey(signed);
+const valid = server.validateKey(signed.key); // LicenseKey | null
+```
+
+---
+
+## Rate Limiting
+
+```ts
+const server = new PaymentMcpServer({
+  name: "my-server",
+  version: "1.0.0",
+  payment: {
+    price: 0.001,
+    paymentMethods: ["usdc"],
+    walletAddress: "0x...",
+    rateLimit: {
+      maxCalls: 100,
+      windowSeconds: 3600, // Per hour
+    },
+  },
+});
+
+// Check remaining
+const remaining = server.remainingRateLimit("user-123");
+```
+
+---
+
+## Usage Tracking
+
+```ts
+server.tool("my-tool", schema, handler);
+
+// After some calls...
+const total = server.getUsage("user-123"); // => 5
+const all = server.getAllUsage(); // => { "user-123": 5, "user-456": 12 }
+```
+
+---
+
+## Payment Flow
+
+```
+User calls tool → Check rate limit → Free tier? → License key? → Payment provider? → Execute / Deny
+```
+
+1. **Rate limit** — too many calls? Deny.
+2. **Free tier** — remaining free calls? Allow, decrement.
+3. **License key** — valid key in `_meta.licenseKey`? Allow.
+4. **Payment provider** — verified payment? Allow.
+5. **No provider configured** — allow all (dev mode).
+
+---
+
+## Deploy to Cloudflare Workers
+
+```ts
+// worker.ts
+import { PaymentMcpServer } from "mcp-payment-middleware";
+
+export default {
+  async fetch(request: Request, env: Env) {
+    const server = new PaymentMcpServer({
+      name: "my-remote-server",
+      version: "1.0.0",
+      payment: {
+        price: 0.001,
+        paymentMethods: ["usdc"],
+        walletAddress: env.WALLET_ADDRESS,
+        usdcRpcUrl: "https://arb1.arbitrum.io/rpc",
+      },
+    });
+
+    // ... register tools, handle MCP transport
+  },
+};
+```
+
+---
+
+## API Reference
+
+### `new PaymentMcpServer(config)`
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `config.name` | `string` | Server name |
+| `config.version` | `string` | Server version |
+| `config.payment.price` | `number` | Price per call in USD |
+| `config.payment.paymentMethods` | `("usdc" \| "stripe")[]` | Enabled payment methods |
+| `config.payment.walletAddress` | `string?` | USDC wallet (required for USDC) |
+| `config.payment.stripeSecretKey` | `string?` | Stripe key (required for Stripe) |
+| `config.payment.freeTierCalls` | `number?` | Free calls before payment required |
+| `config.payment.rateLimit` | `{ maxCalls, windowSeconds }?` | Rate limit config |
+| `config.payment.licenseKeys` | `LicenseKey[]?` | Pre-loaded license keys |
+| `config.payment.customProviders` | `PaymentProvider[]?` | Custom payment backends |
+| `config.payment.usdcChain` | `"arbitrum" \| "base" \| "polygon"?` | Chain for USDC (default: arbitrum) |
+| `config.payment.usdcRpcUrl` | `string?` | Custom RPC URL |
+
+### `server.tool(name, schema, handler)`
+
+Same API as `McpServer.tool()`. Handler automatically wrapped with payment checks.
+
+### `server.getUsage(userId)` / `server.getAllUsage()`
+
+Get call counts per user.
+
+### `server.validateKey(keyString)`
+
+Validate a license key. Returns `LicenseKey | null`.
+
+### `withPayment(server, options)`
+
+Wrap an existing `McpServer` instance. Must be called before registering tools.
+
+---
+
+## Philosophy
+
+1. **Open-source first.** The core middleware is free and MIT-licensed. Forever.
+2. **Payment-agnostic.** USDC, Stripe, custom — use what works for your users.
+3. **One line.** `withPayment(server, options)` — that's the integration surface.
+4. **Solo-dev friendly.** No API keys needed for USDC. Built for indie developers.
 
 ---
 
@@ -16,90 +280,18 @@ The payment rails exist. The demand is real. But adding payment to an MCP server
 
 ---
 
-## What It Does
+## Roadmap
 
-```ts
-// Before: Read x402 spec, set up wallet, build metering, handle errors...
-// After:
-import { withPayment } from 'mcp-payment-middleware';
-
-const server = withPayment(myMcpServer, {
-  price: 0.001,        // USDC per call
-  paymentMethods: ['usdc', 'stripe'],
-});
-```
-
-One line. That's it.
-
----
-
-## Features (Planned)
-
-- [x] Architecture design
-- [ ] USDC payment via x402 (Arbitrum L2)
-- [ ] Stripe payment (credit card)
-- [ ] Automatic rate limiting & usage tracking
-- [ ] License key distribution
-- [ ] Cloudflare Workers deploy script
+- [x] Core middleware — `withPayment`, `PaymentMcpServer`
+- [x] USDC payment verification (Arbitrum, Base, Polygon)
+- [x] Stripe payment verification
+- [x] License key generation & validation
+- [x] Rate limiting & usage tracking
+- [x] Custom payment provider interface
+- [ ] Stripe Checkout Session creation (webhook handling)
+- [ ] Persistent usage storage (D1, KV, Postgres adapters)
 - [ ] Usage dashboard (self-hosted)
-
----
-
-## Why This Exists
-
-I researched the MCP monetization landscape in depth. Here's what I found:
-
-| Solution | Monthly Downloads | Maturity |
-|----------|-------------------|----------|
-| mcp-x402-gateway | 151 | v0.1.0 |
-| AgenticMarket | 145 | Early |
-| PayMCP | 139 | v0.8.3 |
-| agentic-mcp-pay | 35 | v0.1.1 |
-
-**There is no winner.** The most popular solution has 151 monthly downloads. Everyone is searching for product-market fit.
-
-This project aims to be the dead-simple, open-source standard for MCP monetization — the one developers actually want to use.
-
----
-
-## The Opportunity
-
-- **14K+ MCP servers** → 14K+ potential users
-- **<5% monetized** → massive untapped market
-- **$73M in x402 volume** → payment rails are battle-tested
-- **No dominant solution** → wide-open competitive landscape
-
-The MCP ecosystem is in its "picks and shovels" phase. The surest way to make money during a gold rush is selling tools to miners.
-
----
-
-## Philosophy
-
-1. **Open-source first.** The core middleware is free and MIT-licensed. Forever.
-2. **Payment-agnostic.** USDC, Stripe, PayPal — use what works for your users.
-3. **One line of code.** If you need to read a protocol spec, we've failed.
-4. **Solo-dev friendly.** Built for the indie developer, not the enterprise.
-
-A paid template with pre-built dashboard, analytics, and deployment scripts will be available later — but you'll never need it to use the core middleware.
-
----
-
-## Get Involved
-
-- ⭐ **Star this repo** to follow along
-- 👀 **Watch** for release notifications
-- 💬 **Discussions** — share what you're building, what's blocking you from monetizing your MCP server
-- 🐛 **Issues** — feature requests, bug reports, or just say hi
-
-**Building an MCP server? I want to hear from you.** What would make you actually charge for your work? Open a Discussion and let's talk.
-
----
-
-## Timeline
-
-- **Week 1-2**: Core middleware (USDC + Stripe, rate limiting, license keys)
-- **Week 3**: Documentation, examples, deploy scripts
-- **Week 4**: Community feedback, v1.0 release
+- [ ] x402 protocol support
 
 ---
 

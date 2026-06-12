@@ -1,0 +1,60 @@
+{
+  "name": "mcp-payment-middleware",
+  "version": "0.1.0",
+  "description": "Add paid access to your MCP server in under 10 minutes. Free, open-source, MIT-licensed.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "payment",
+    "monetization",
+    "x402",
+    "usdc",
+    "stripe",
+    "middleware"
+  ],
+  "license": "MIT",
+  "author": "iPythoning",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iPythoning/mcp-payment-middleware"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.0.0 || ^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@modelcontextprotocol/sdk": {
+      "optional": false
+    }
+  },
+  "dependencies": {
+    "stripe": "^18.0.0"
+  },
+  "optionalDependencies": {
+    "ethers": "^6.0.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.22.0",
+    "typescript": "^5.0.0",
+    "zod": "^3.24.0"
+  }
+}
