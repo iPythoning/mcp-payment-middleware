@@ -300,3 +300,7 @@ The payment rails exist. The demand is real. But adding payment to an MCP server
 ---
 
 *Built in public by [@iPythoning](https://github.com/iPythoning) | MIT License*
+
+## Support
+
+[![Buy me a coffee](https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=dayongfan&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff)](https://buymeacoffee.com/dayongfan)
